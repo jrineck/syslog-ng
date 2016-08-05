@@ -141,6 +141,7 @@ _kv_scanner_extract_value(KVScanner *self)
   cur = &self->input[self->input_pos];
 
   self->quote_state = KV_QUOTE_INITIAL;
+  self->value_was_quoted = *cur == '\'' || *cur == '\"';
   while (*cur && self->quote_state != KV_QUOTE_FINISH)
     {
       switch (self->quote_state)
@@ -154,8 +155,6 @@ _kv_scanner_extract_value(KVScanner *self)
             {
               self->quote_state = KV_QUOTE_STRING;
               self->quote_char = *cur;
-              if (self->value->len == 0)
-                self->value_was_quoted = TRUE;
             }
           else
             {
