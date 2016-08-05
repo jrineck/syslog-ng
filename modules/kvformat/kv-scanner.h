@@ -35,8 +35,6 @@ struct _KVScanner
   GString *decoded_value;
   gboolean value_was_quoted;
   gchar value_separator;
-  gchar quote_char;
-  gint quote_state;
   gint next_quote_state;
   gboolean (*parse_value)(KVScanner *self);
   void (*free_fn)(KVScanner *self);
