@@ -21,17 +21,9 @@
  */
 #include "kv-scanner.h"
 #include "str-utils.h"
-#include "utf8utils.h"
+#include "str-repr/decode.h"
 
 #include <string.h>
-
-enum
-{
-  KV_QUOTE_INITIAL = 0,
-  KV_QUOTE_STRING,
-  KV_QUOTE_BACKSLASH,
-  KV_QUOTE_FINISH
-};
 
 void
 kv_scanner_set_value_separator(KVScanner *self, gchar value_separator)
@@ -92,91 +84,6 @@ _kv_scanner_extract_key(KVScanner *self)
   return TRUE;
 }
 
-static void
-_decode_backslash_escape(GString *value, gchar quote_char, gchar ch)
-{
-  gchar control;
-  switch (ch)
-    {
-    case 'b':
-      control = '\b';
-      break;
-    case 'f':
-      control = '\f';
-      break;
-    case 'n':
-      control = '\n';
-      break;
-    case 'r':
-      control = '\r';
-      break;
-    case 't':
-      control = '\t';
-      break;
-    case '\\':
-      control = '\\';
-      break;
-    default:
-      if (quote_char != ch)
-        g_string_append_c(value, '\\');
-      control = ch;
-      break;
-    }
-  g_string_append_c(value, control);
-}
-
-static gboolean
-_is_delimiter(const gchar *cur)
-{
-  return (*cur == ' ') || (strncmp(cur, ", ", 2) == 0);
-}
-
-gboolean
-append_unescaped_c_literal_as_binary(GString *value, const gchar *input, const gchar **end)
-{
-  const gchar *cur = input;
-  gchar quote_char;
-  gint quote_state;
-
-  quote_state = KV_QUOTE_INITIAL;
-  while (*cur && quote_state != KV_QUOTE_FINISH)
-    {
-      switch (quote_state)
-        {
-        case KV_QUOTE_INITIAL:
-          if (_is_delimiter(cur))
-            {
-              quote_state = KV_QUOTE_FINISH;
-            }
-          else if (*cur == '\"' || *cur == '\'')
-            {
-              quote_state = KV_QUOTE_STRING;
-              quote_char = *cur;
-            }
-          else
-            {
-              g_string_append_c(value, *cur);
-            }
-          break;
-        case KV_QUOTE_STRING:
-          if (*cur == quote_char)
-            quote_state = KV_QUOTE_INITIAL;
-          else if (*cur == '\\')
-            quote_state = KV_QUOTE_BACKSLASH;
-          else
-            g_string_append_c(value, *cur);
-          break;
-        case KV_QUOTE_BACKSLASH:
-          _decode_backslash_escape(value, quote_char, *cur);
-          quote_state = KV_QUOTE_STRING;
-          break;
-        }
-      cur++;
-    }
-  *end = cur;
-  return TRUE;
-}
-
 static gboolean
 _is_c_literal_quoted(const gchar *input)
 {
@@ -189,10 +96,9 @@ _kv_scanner_extract_value(KVScanner *self)
   const gchar *end;
   gboolean result;
 
-  g_string_truncate(self->value, 0);
   self->value_was_quoted = _is_c_literal_quoted(&self->input[self->input_pos]);
 
-  result = append_unescaped_c_literal_as_binary(self->value, &self->input[self->input_pos], &end);
+  result = str_repr_decode(self->value, &self->input[self->input_pos], &end);
   self->input_pos = end - self->input;
   return result;
 }
