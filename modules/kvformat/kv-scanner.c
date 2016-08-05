@@ -93,7 +93,7 @@ _kv_scanner_extract_key(KVScanner *self)
 }
 
 static void
-_decode_backslash_escape(KVScanner *self, gchar quote_char, gchar ch)
+_decode_backslash_escape(GString *value, gchar quote_char, gchar ch)
 {
   gchar control;
   switch (ch)
@@ -118,11 +118,11 @@ _decode_backslash_escape(KVScanner *self, gchar quote_char, gchar ch)
       break;
     default:
       if (quote_char != ch)
-        g_string_append_c(self->value, '\\');
+        g_string_append_c(value, '\\');
       control = ch;
       break;
     }
-  g_string_append_c(self->value, control);
+  g_string_append_c(value, control);
 }
 
 static gboolean
@@ -131,19 +131,14 @@ _is_delimiter(const gchar *cur)
   return (*cur == ' ') || (strncmp(cur, ", ", 2) == 0);
 }
 
-static gboolean
-_kv_scanner_extract_value(KVScanner *self)
+gboolean
+append_unescaped_c_literal_as_binary(GString *value, const gchar *input, const gchar **end)
 {
-  const gchar *cur;
+  const gchar *cur = input;
   gchar quote_char;
   gint quote_state;
 
-  g_string_truncate(self->value, 0);
-  self->value_was_quoted = FALSE;
-  cur = &self->input[self->input_pos];
-
   quote_state = KV_QUOTE_INITIAL;
-  self->value_was_quoted = *cur == '\'' || *cur == '\"';
   while (*cur && quote_state != KV_QUOTE_FINISH)
     {
       switch (quote_state)
@@ -160,7 +155,7 @@ _kv_scanner_extract_value(KVScanner *self)
             }
           else
             {
-              g_string_append_c(self->value, *cur);
+              g_string_append_c(value, *cur);
             }
           break;
         case KV_QUOTE_STRING:
@@ -169,17 +164,37 @@ _kv_scanner_extract_value(KVScanner *self)
           else if (*cur == '\\')
             quote_state = KV_QUOTE_BACKSLASH;
           else
-            g_string_append_c(self->value, *cur);
+            g_string_append_c(value, *cur);
           break;
         case KV_QUOTE_BACKSLASH:
-          _decode_backslash_escape(self, quote_char, *cur);
+          _decode_backslash_escape(value, quote_char, *cur);
           quote_state = KV_QUOTE_STRING;
           break;
         }
       cur++;
     }
-  self->input_pos = cur - self->input;
+  *end = cur;
   return TRUE;
+}
+
+static gboolean
+_is_c_literal_quoted(const gchar *input)
+{
+  return *input == '\'' || *input == '\"';
+}
+
+static gboolean
+_kv_scanner_extract_value(KVScanner *self)
+{
+  const gchar *end;
+  gboolean result;
+
+  g_string_truncate(self->value, 0);
+  self->value_was_quoted = _is_c_literal_quoted(&self->input[self->input_pos]);
+
+  result = append_unescaped_c_literal_as_binary(self->value, &self->input[self->input_pos], &end);
+  self->input_pos = end - self->input;
+  return result;
 }
 
 static gboolean
