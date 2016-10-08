@@ -104,13 +104,12 @@ static gboolean
 _kv_scanner_extract_value(KVScanner *self)
 {
   const gchar *end;
-  gboolean result;
 
   self->value_was_quoted = _is_c_literal_quoted(&self->input[self->input_pos]);
 
-  result = str_repr_decode_until_delimiter(self->value, &self->input[self->input_pos], &end, _match_delimiter);
+  str_repr_decode_until_delimiter(self->value, &self->input[self->input_pos], &end, _match_delimiter);
   self->input_pos = end - self->input;
-  return result;
+  return TRUE;
 }
 
 static gboolean
