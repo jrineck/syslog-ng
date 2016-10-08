@@ -91,6 +91,16 @@ _is_c_literal_quoted(const gchar *input)
 }
 
 static gboolean
+_match_delimiter(const gchar *cur, const gchar **new_cur)
+{
+  gboolean result;
+
+  result = (*cur == ' ') || (strncmp(cur, ", ", 2) == 0);
+  *new_cur = cur + 1;
+  return result;
+}
+
+static gboolean
 _kv_scanner_extract_value(KVScanner *self)
 {
   const gchar *end;
@@ -98,7 +108,7 @@ _kv_scanner_extract_value(KVScanner *self)
 
   self->value_was_quoted = _is_c_literal_quoted(&self->input[self->input_pos]);
 
-  result = str_repr_decode(self->value, &self->input[self->input_pos], &end);
+  result = str_repr_decode_until_delimiter(self->value, &self->input[self->input_pos], &end, _match_delimiter);
   self->input_pos = end - self->input;
   return result;
 }
