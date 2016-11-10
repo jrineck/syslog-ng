@@ -32,6 +32,14 @@ assert_decode_equals(const gchar *input, const gchar *expected)
   const gchar *end;
 
   str_repr_decode(str, input, &end);
+
+static void
+assert_decode_equals_and_fails(const gchar *input, const gchar *expected)
+{
+  GString *str = g_string_new("");
+  const gchar *end;
+
+  assert_false(str_repr_decode(str, input, &end), "Decode operation succeeded while failure was expected, input=%s", input);
   assert_string(str->str, expected, "Decoded value does not match expected");
   g_string_free(str, TRUE);
 }
@@ -90,12 +98,13 @@ test_decode_apostrophe_quoted_strings(void)
 static void
 test_decode_malformed_strings(void)
 {
-  assert_decode_equals("'alma", "alma");
-  assert_decode_equals("\"alma", "alma");
-  assert_decode_equals("alma'", "alma");
-  assert_decode_equals("alma\"", "alma");
-  assert_decode_equals("alma\"korte", "almakorte");
-  assert_decode_equals("alma\"korte\"", "almakorte");
+  assert_decode_equals_and_fails("'alma", "alma");
+  assert_decode_equals_and_fails("\"alma", "alma");
+  assert_decode_equals_and_fails("alma'", "alma");
+  assert_decode_equals_and_fails("alma\"", "alma");
+  assert_decode_equals_and_fails("alma\"korte", "almakorte");
+  assert_decode_equals_and_fails("alma\"korte\"", "almakorte");
+  assert_decode_equals_and_fails("'alma'@korte", "alma@korte");
 }
 
 static void
