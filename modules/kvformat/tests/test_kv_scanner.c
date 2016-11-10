@@ -338,6 +338,14 @@ Test(kv_scanner, tab_is_not_considered_a_separator)
 
 Test(kv_scanner, quoted_values_are_unquoted_like_c_strings)
 {
+  _EXPECT_KV_PAIRS("foo=\"\\\"\" bar=baz",
+               { "foo", "\"" },
+               { "bar", "baz"});
+
+  _EXPECT_KV_PAIRS("foo='\"' bar=baz",
+               { "foo", "\"" },
+               { "bar", "baz"});
+
   _EXPECT_KV_PAIRS("foo=\"bar\"",
                { "foo", "bar" });
 
@@ -346,16 +354,15 @@ Test(kv_scanner, quoted_values_are_unquoted_like_c_strings)
                { "key2", "value2" });
 
   /* embedded quote */
-  /* FIXME: this should be fixed up by adding backslash support to the generic parser! */
-  _EXPECT_KV_PAIRS_NOSPACE("key1=\"\\\"value1\"",
+  _EXPECT_KV_PAIRS("key1=\"\\\"value1\"",
                { "key1", "\"value1" });
 
   /* control sequences */
-  _EXPECT_KV_PAIRS_NOSPACE("key1=\"\\b \\f \\n \\r \\t \\\\\"",
+  _EXPECT_KV_PAIRS("key1=\"\\b \\f \\n \\r \\t \\\\\"",
                { "key1", "\b \f \n \r \t \\" });
 
   /* unknown backslash escape is left as is */
-  _EXPECT_KV_PAIRS_NOSPACE("key1=\"\\p\"",
+  _EXPECT_KV_PAIRS("key1=\"\\p\"",
                { "key1", "\\p" });
 
   _EXPECT_KV_PAIRS("key1='value1' key2='value2'",
@@ -363,16 +370,15 @@ Test(kv_scanner, quoted_values_are_unquoted_like_c_strings)
                { "key2", "value2" });
 
   /* embedded quote */
-  /* FIXME: this should be fixed up by adding backslash support to the generic parser! */
-  _EXPECT_KV_PAIRS_NOSPACE("key1='\\'value1'",
+  _EXPECT_KV_PAIRS("key1='\\'value1'",
                { "key1", "'value1" });
 
   /* control sequences */
-  _EXPECT_KV_PAIRS_NOSPACE("key1='\\b \\f \\n \\r \\t \\\\'",
+  _EXPECT_KV_PAIRS("key1='\\b \\f \\n \\r \\t \\\\'",
                { "key1", "\b \f \n \r \t \\" });
 
   /* unknown backslash escape is left as is */
-  _EXPECT_KV_PAIRS_NOSPACE("key1='\\p'",
+  _EXPECT_KV_PAIRS("key1='\\p'",
                { "key1", "\\p" });
 
   _EXPECT_KV_PAIRS("key1=\\b\\f\\n\\r\\t\\\\",
@@ -400,9 +406,26 @@ Test(kv_scanner, keys_without_value_separator_are_ignored)
                { "key6", "value6" });
 }
 
-Test(kv_scanner, quoted_values_with_special_characters)
+Test(kv_scanner, quoted_values_are_considered_one_token_thus_space_based_concatenation_does_not_happen)
 {
-  _EXPECT_KV_PAIRS("key1='value foo, foo2 =@,\"' key2='value foo,  a='",
+  _EXPECT_KV_PAIRS("key1=\"value foo\" key2=marker",
+               { "key1", "value foo" },
+               { "key2", "marker" });
+
+  _EXPECT_KV_PAIRS("key1=\"value foo embedded_key=emb_value\" key2=marker",
+               { "key1", "value foo embedded_key=emb_value" },
+               { "key2", "marker" });
+
+  /* embedded quote */
+  _EXPECT_KV_PAIRS("key1=\"value foo\\\"\" key2=marker",
+               { "key1", "value foo\"" },
+               { "key2", "marker" });
+
+  _EXPECT_KV_PAIRS("key1='value foo\\'' key2=marker",
+               { "key1", "value foo'" },
+               { "key2", "marker" });
+
+  _EXPECT_KV_PAIRS("key1=\"value foo, foo2 =@,\\\"\" key2='value foo,  a='",
                { "key1", "value foo, foo2 =@,\"" },
                { "key2", "value foo,  a=" });
 }
@@ -937,49 +960,49 @@ _provide_cases_without_allow_pair_separator_in_value(void)
   {
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k=\"a",
       .expected = INIT_KVCONTAINER({"k", "\"a"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k=\"\\",
       .expected = INIT_KVCONTAINER({"k", "\"\\"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k='a",
       .expected = INIT_KVCONTAINER({"k", "'a"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k='\\",
       .expected = INIT_KVCONTAINER({"k", "'\\"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = " =k=v=w",
       .expected = INIT_KVCONTAINER({"k", "v=w"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k=\"\xc3v",
       .expected = INIT_KVCONTAINER({"k", "\"\xc3v"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k=\"\xff",
       .expected = INIT_KVCONTAINER({"k", "\"\xff"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k=\"\xffv",
       .expected = INIT_KVCONTAINER({"k", "\"\xffv"}),
     },
@@ -997,46 +1020,48 @@ _provide_cases_without_allow_pair_separator_in_value(void)
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k1=\"\\\"v1\"",
       .expected = INIT_KVCONTAINER({"k1", "\"v1"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k1=\"\\b \\f \\n \\r \\t \\\\\"",
       .expected = INIT_KVCONTAINER({"k1", "\b \f \n \r \t \\"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k1=\"\\p\"",
       .expected = INIT_KVCONTAINER({"k1", "\\p"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k1='\\'v1'",
       .expected = INIT_KVCONTAINER({"k1", "'v1"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k1='\\b \\f \\n \\r \\t \\\\'",
       .expected = INIT_KVCONTAINER({"k1", "\b \f \n \r \t \\"}),
     },
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k1='\\p'",
       .expected = INIT_KVCONTAINER({"k1", "\\p"}),
     },
+
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k1=\"v foo, foo2 =@,\\\"\" k2='v foo,  a='",
       .expected = INIT_KVCONTAINER({"k1", "v foo, foo2 =@,\""}, {"k2", "v foo,  a="}),
     },
+    /* FIXME: ", " as separator */
     {
       TC_HEAD,
       .config = CONFIG_LIST(DEFAULT_CONFIG),

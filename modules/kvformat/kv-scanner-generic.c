@@ -21,6 +21,8 @@
  */
 #include "kv-scanner-generic.h"
 #include "kv-scanner.h"
+#include "str-repr/decode.h"
+
 
 typedef struct _KVToken KVToken;
 struct _KVToken
@@ -45,6 +47,7 @@ enum
   KV_IN_VALUE,
   KV_IN_KEY_OR_VALUE,
   KV_IN_QUOTE,
+  KV_BACKSLASH_QUOTE,
   KV_AFTER_QUOTE,
   KV_IN_SEPARATOR,
   KV_KEY_FOUND,
@@ -231,11 +234,21 @@ _in_quote_state(KVScannerGeneric *self, gchar ch)
       _end_value(self);
       self->state = KV_EOL;
     }
+  else if (ch == '\\')
+    {
+      self->state = KV_BACKSLASH_QUOTE;
+    }
   else if (ch == self->super.quote_char)
     {
       _end_value(self);
       self->state = KV_AFTER_QUOTE;
     }
+}
+
+static inline void
+_in_backslash_quote_state(KVScannerGeneric *self, gchar ch)
+{
+  self->state = KV_IN_QUOTE;
 }
 
 static inline void
@@ -294,22 +307,31 @@ _in_separator_state(KVScannerGeneric *self, gchar ch)
     }
 }
 
+static gboolean
+_match_value_end(const gchar *cur, const gchar **new_cur, gpointer user_data)
+{
+  const gchar *next_value_end = (const gchar *) user_data;
+
+  *new_cur = cur;
+  return (cur >= next_value_end);
+}
+
 static inline void
 _produce_value(KVScannerGeneric *self)
 {
-  const gchar *cur;
+  const gchar *end;
 
-  if (*self->next_value.begin == self->super.quote_char && *(self->next_value.end - 1) == self->super.quote_char)
+  if (*self->next_value.begin == self->super.quote_char &&
+      str_repr_decode_until_delimiter_append(self->super.value, self->next_value.begin, &end, _match_value_end, (gpointer) self->next_value.end))
     {
       self->super.value_was_quoted = TRUE;
-      self->next_value.begin++;
-      self->next_value.end--;
+      return;
     }
-
-  for (cur = self->next_value.begin; cur < self->next_value.end; cur++)
+  else
     {
-      g_string_append_c(self->super.value, *cur);
+      g_string_truncate(self->super.value, 0);
     }
+  g_string_append_len(self->super.value, self->next_value.begin, self->next_value.end - self->next_value.begin);
 }
 
 static inline void
@@ -339,6 +361,9 @@ _extract_value(KVScannerGeneric *self)
           break;
         case KV_IN_QUOTE:
           _in_quote_state(self, cur_char);
+          break;
+        case KV_BACKSLASH_QUOTE:
+          _in_backslash_quote_state(self, cur_char);
           break;
         case KV_AFTER_QUOTE:
           _after_quote_state(self, cur_char);
