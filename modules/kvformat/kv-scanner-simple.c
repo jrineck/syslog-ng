@@ -82,8 +82,15 @@ _extract_value(KVScannerSimple *self)
   const gchar *end;
 
   self->super.value_was_quoted = _is_c_literal_quoted(input);
-  str_repr_decode_until_delimiter(self->super.value, input, &end, _match_delimiter, NULL);
-  self->super.input_pos = end - self->super.input;
+  if (str_repr_decode_until_delimiter(self->super.value, input, &end, _match_delimiter, NULL))
+    {
+      self->super.input_pos = end - self->super.input;
+    }
+  else
+    {
+      g_string_truncate(self->super.value, 0);
+      g_string_append_len(self->super.value, input, end - input);
+    }
 }
 
 static gboolean
