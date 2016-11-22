@@ -132,10 +132,7 @@ typedef struct Testcase_t
 KVScanner *
 create_kv_scanner(const ScannerConfig config)
 {
-  KVScanner *scanner = (config.allow_pair_separator_in_value ?
-          kv_scanner_generic_new(config.kv_separator, NULL) :
-          kv_scanner_simple_new(config.kv_separator, NULL));
-
+  KVScanner *scanner = kv_scanner_simple_new(config.kv_separator, NULL, config.allow_pair_separator_in_value);
   scanner->transform_value = config.transform_value;
 
   KVScanner *clone = kv_scanner_clone(scanner);
@@ -254,14 +251,11 @@ Test(kv_scanner, stray_words_are_ignored)
   _EXPECT_KV_PAIRS("lorem ipsum/dolor @sitamen foo=bar",
                { "foo", "bar" });
 
-  /* FIXME: this difference can be explained by the allow-space option */
   _EXPECT_KV_PAIRS_WITHSPACE("lorem ipsum/dolor = foo=bar\"",
                { "dolor", "" },
                { "foo", "bar\"" });
   _EXPECT_KV_PAIRS_NOSPACE("lorem ipsum/dolor = foo=bar\"",
                { "foo", "bar\"" });
-
-  /* FIXME: this difference can be explained by the allow-space option */
 
   _EXPECT_KV_PAIRS_NOSPACE("foo=bar lorem ipsum key=value some more values",
                { "foo", "bar" },
@@ -295,8 +289,7 @@ Test(kv_scanner, spaces_between_values_are_ignored)
 
 Test(kv_scanner, comma_separated_values)
 {
-  /* FIXME: this should be fixed up by adding ", " separator to the generic parser */
-  _EXPECT_KV_PAIRS_NOSPACE("key1=value1, key2=value2, key3=value3",
+  _EXPECT_KV_PAIRS("key1=value1, key2=value2, key3=value3",
                { "key1", "value1" },
                { "key2", "value2" },
                { "key3", "value3" });
@@ -304,10 +297,19 @@ Test(kv_scanner, comma_separated_values)
 
 Test(kv_scanner, comma_separated_values_and_multiple_spaces)
 {
-  /* FIXME: this should be fixed up by adding ", " separator to the generic parser */
+  /* spaces are ignored here at the end of the value, as the first space is
+   * the separator and ',' is the next stray word */
+
   _EXPECT_KV_PAIRS_NOSPACE("key1=value1,   key2=value2  ,    key3=value3",
                { "key1", "value1" },
                { "key2", "value2" },
+               { "key3", "value3" });
+
+  /* In value2 the spaces are considered part of the value as we don't have
+   * a delimiter and spaces get concatenated into the value */
+  _EXPECT_KV_PAIRS_WITHSPACE("key1=value1,   key2=value2  ,    key3=value3",
+               { "key1", "value1" },
+               { "key2", "value2  " },
                { "key3", "value3" });
 }
 
@@ -389,7 +391,6 @@ Test(kv_scanner, quoted_values_are_unquoted_like_c_strings)
 
 Test(kv_scanner, keys_without_value_separator_are_ignored)
 {
-  /* FIXME: different is explained using space in value */
   _EXPECT_KV_PAIRS_NOSPACE("key1 key2=value2 key3 key4=value4",
                { "key2", "value2" },
                { "key4", "value4" });
@@ -470,11 +471,17 @@ Test(kv_scanner, quotation_is_stored_in_the_was_quoted_value_member)
 Test(kv_scanner, value_separator_with_whitespaces_around)
 {
   ScannerConfig config= {
-    ':',
-    FALSE
+    .kv_separator=':',
   };
+  config.allow_pair_separator_in_value = FALSE;
   _IMPL_EXPECT_KV(config, "key1: value1 key2 : value2 key3 :value3 ",
                            {"key1", "" });
+
+  config.allow_pair_separator_in_value = TRUE;
+  _IMPL_EXPECT_KV(config, "key1: value1 key2 : value2 key3 :value3 ",
+                           {"key1", "value1"},
+                           {"key2", "value2"},
+                           {"key3", "value3"});
 }
 
 Test(kv_scanner, value_separator_is_used_to_separate_key_from_value)
@@ -557,8 +564,7 @@ Test(kv_scanner, comma_separator)
   _EXPECT_KV_PAIRS(", k=v",  { "k", "v" });
   _EXPECT_KV_PAIRS(",k=v",   { "k", "v" });
   _EXPECT_KV_PAIRS("k=v,",   { "k", "v," });
-  /* FIXME: separator can be a ", " */
-  _EXPECT_KV_PAIRS_NOSPACE("k=v, ",  { "k", "v" });
+  _EXPECT_KV_PAIRS("k=v, ",  { "k", "v" });
 }
 
 Test(kv_scanner, multiple_separators)
@@ -1061,10 +1067,9 @@ _provide_cases_without_allow_pair_separator_in_value(void)
       .input = "k1=\"v foo, foo2 =@,\\\"\" k2='v foo,  a='",
       .expected = INIT_KVCONTAINER({"k1", "v foo, foo2 =@,\""}, {"k2", "v foo,  a="}),
     },
-    /* FIXME: ", " as separator */
     {
       TC_HEAD,
-      .config = CONFIG_LIST(DEFAULT_CONFIG),
+      .config = CONFIG_LIST(DEFAULT_CONFIG, SPACE_HANDLING_CONFIG),
       .input = "k1=v1, k2=v2, k3=v3",
       .expected = INIT_KVCONTAINER({"k1", "v1"}, {"k2", "v2"}, {"k3", "v3"}),
     },
@@ -1157,11 +1162,16 @@ _provide_cases_with_allow_pair_separator_in_value(void)
 {
   Testcase tc[] =
   {
-    /* FIXME: do we really want spaces to be trimmed from key names like this ? */
     {
       TC_HEAD,
       .config = CONFIG_LIST(SPACE_HANDLING_CONFIG),
       .input = "foo =bar",
+      .expected = INIT_KVCONTAINER({"foo", "bar"}),
+    },
+    {
+      TC_HEAD,
+      .config = CONFIG_LIST(SPACE_HANDLING_CONFIG),
+      .input = "foo= bar",
       .expected = INIT_KVCONTAINER({"foo", "bar"}),
     },
     {
@@ -1237,7 +1247,6 @@ _provide_cases_with_allow_pair_separator_in_value(void)
       .expected = INIT_KVCONTAINER({"foo", "a \"bar baz"}),
     },
 
-    /* FIXME: why a single quote handled differently? */
     {
       TC_HEAD,
       .config = CONFIG_LIST(SPACE_HANDLING_CONFIG),
@@ -1256,11 +1265,12 @@ _provide_cases_with_allow_pair_separator_in_value(void)
       .input = "foo=\\\"bar baz\\\"",
       .expected = INIT_KVCONTAINER({"foo", "\\\"bar baz\\\""}),
     },
+    /* NOTE: foo is quoted, and thus space based concatenation is not at play. baz is just a stray word */
     {
       TC_HEAD,
       .config = CONFIG_LIST(SPACE_HANDLING_CONFIG),
       .input = "foo=\"bar\" baz c=d",
-      .expected = INIT_KVCONTAINER({"foo", "\"bar\" baz"}, {"c", "d"}),
+      .expected = INIT_KVCONTAINER({"foo", "bar"}, {"c", "d"}),
     },
     {
       TC_HEAD,
