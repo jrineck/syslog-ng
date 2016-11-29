@@ -33,7 +33,10 @@ static CfgLexerKeyword kv_parser_keywords[] =
   { "linux_audit_parser",            KW_LINUX_AUDIT_PARSER,  },
   { "prefix",                        KW_PREFIX,  },
   { "value_separator",               KW_VALUE_SEPARATOR,  },
-  { "allow_pair_separator_in_value", KW_ALLOW_PAIR_SEPARATOR_OPTION, },
+  { "allow_pair_separator_in_value", KW_ALLOW_PAIR_SEPARATOR_OPTION,
+                                     KWS_OBSOLETE,
+                                     "WARNING: The allow-pair-separator-in-value() has become the default behavior of kv-parser(), "
+                                     "and the option was deprecated in " VERSION_3_9 },
   { NULL }
 };
 

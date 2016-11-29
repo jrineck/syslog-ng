@@ -100,6 +100,7 @@
 #define VERSION_3_6 "syslog-ng 3.6"
 #define VERSION_3_7 "syslog-ng 3.7"
 #define VERSION_3_8 "syslog-ng 3.8"
+#define VERSION_3_9 "syslog-ng 3.9"
 
 #define VERSION_VALUE_3_0  0x0300
 #define VERSION_VALUE_3_1  0x0301
