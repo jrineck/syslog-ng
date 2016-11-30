@@ -90,6 +90,7 @@ _expect_next_key_value(KVScanner *scanner, const gchar *key, const gchar *value)
 typedef struct _ScannerConfig
 {
   gchar kv_separator;
+  gchar pair_separator;
   KVTransformValueFunc transform_value;
 } ScannerConfig;
 
@@ -130,7 +131,7 @@ typedef struct Testcase_t
 KVScanner *
 create_kv_scanner(const ScannerConfig config)
 {
-  KVScanner *scanner = kv_scanner_new(config.kv_separator, NULL);
+  KVScanner *scanner = kv_scanner_new(config.kv_separator, config.pair_separator, NULL);
   scanner->transform_value = config.transform_value;
 
   KVScanner *clone = kv_scanner_clone(scanner);
@@ -471,6 +472,31 @@ Test(kv_scanner, transforms_values_if_transform_value_is_set)
   _EXPECT_KV_PAIRS_WITH_CONFIG(config,
                            "foo=\"bar\"",
                            { "foo", "cbs" });
+}
+
+Test(kv_scanner, pair_separator_causes_values_to_be_split_at_that_character)
+{
+  ScannerConfig config = {
+    .kv_separator = '=',
+    .pair_separator = ';',
+  };
+
+  _EXPECT_KV_PAIRS_WITH_CONFIG(config, "foo=bar; bar=foo;",
+                               {"foo", "bar"},
+                               {"bar", "foo"});
+  _EXPECT_KV_PAIRS_WITH_CONFIG(config, "foo=bar;bar=foo;baz=foo",
+                               {"foo", "bar"},
+                               {"bar", "foo"},
+                               {"baz", "foo"});
+  _EXPECT_KV_PAIRS_WITH_CONFIG(config, "foo=bar;bar=foo;",
+                               {"foo", "bar"},
+                               {"bar", "foo"});
+  _EXPECT_KV_PAIRS_WITH_CONFIG(config, "foo=bar baz;bar=foo;",
+                               {"foo", "bar baz"},
+                               {"bar", "foo"});
+  _EXPECT_KV_PAIRS_WITH_CONFIG(config, "foo=bar baz  ;bar=foo;",
+                               {"foo", "bar baz"},
+                               {"bar", "foo"});
 }
 
 
